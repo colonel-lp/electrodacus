@@ -1,4 +1,7 @@
+# ESP-MQTT ships with ESP-IDF as the built-in "mqtt" component, so it is NOT
+# listed here. Pulling espressif/mqtt from the registry installs a second
+# component (espressif__mqtt) that collides with the built-in one and breaks
+# the build ("Multiple candidates to satisfy project requirements: mqtt").
 dependencies:
   idf: ">=5.0"
   bblanchon/arduinojson: "^7.2.0"
-  espressif/mqtt: "^1.1.0"
