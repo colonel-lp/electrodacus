@@ -1,32 +1,38 @@
-name: PlatformIO CI
+name: ESP-IDF CI
 
-on: [push]
+on:
+  push:
+  pull_request:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/cache@v3
+      - uses: actions/checkout@v4
         with:
-          path: |
-            ~/.cache/pip
-            ~/.platformio/.cache
-          key: ${{ runner.os }}-pio
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-      - name: Install PlatformIO Core
-        run: pip install --upgrade platformio
+          # full history so version handling via `git describe` works
+          fetch-depth: 0
 
-      - name: Build PlatformIO Project
-        run: pio run
-      - name: Build PlatformIO Filesystem
-        run: pio run -t buildfs
+      - name: Build firmware (ESP-IDF)
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: release-v5.1
+          target: esp32
+          command: |
+            idf.py build
+            # Build the SPIFFS filesystem image from the data/ directory.
+            # Size must match the "spiffs" partition in partitions.csv (0x170000).
+            python "$IDF_PATH/components/spiffs/spiffsgen.py" \
+              $((0x170000)) data build/spiffs.bin
+
       - name: Archive production artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: firmware-binaries
           path: |
-            .pio/**/*.bin
+            build/*.bin
+            build/bootloader/bootloader.bin
+            build/partition_table/partition-table.bin
+            build/flasher_args.json
+          if-no-files-found: error
