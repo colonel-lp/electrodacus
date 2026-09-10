@@ -3,9 +3,25 @@
 
 #include <cmath>
 
-SbmsData::SbmsData(String dataString)
+namespace {
+
+//replace every occurrence of `from` with `to` in place
+void replaceAll(std::string &s, const std::string &from, const std::string &to)
 {
-    dataString.replace("\\\\", "\\"); //replace escaped "\" with single "\" 
+    if(from.empty()) return;
+    size_t pos = 0;
+    while((pos = s.find(from, pos)) != std::string::npos)
+    {
+        s.replace(pos, from.length(), to);
+        pos += to.length();
+    }
+}
+
+} // namespace
+
+SbmsData::SbmsData(std::string dataString)
+{
+    replaceAll(dataString, "\\\\", "\\"); //replace escaped "\" with single "\"
 
     const char *data = dataString.c_str();
 
@@ -25,7 +41,7 @@ SbmsData::SbmsData(String dataString)
 
     temperatureInternalTenthC = decompress(data, i, 2) - 450;
     temperatureExternalTenthC = decompress(data, i, 2) - 450;
-    
+
     int8_t sign = data[i++] == '-'?-1:1;
     batteryCurrentMA = decompress(data, i, 3) * sign;
     pv1CurrentMA = decompress(data, i, 3);

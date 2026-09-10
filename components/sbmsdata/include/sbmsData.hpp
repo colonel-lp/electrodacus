@@ -1,12 +1,13 @@
 #ifndef SBMS_DATA_H
 #define SBMS_DATA_H
 
-#include <WString.h>
+#include <cstdint>
+#include <string>
 
 class SbmsData {
 
 public:
-    SbmsData(String data);
+    explicit SbmsData(std::string data);
 
     uint16_t year;
     uint8_t month;

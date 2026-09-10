@@ -1,83 +1,68 @@
-# Override some defaults to enable Arduino framework
-CONFIG_ENABLE_ARDUINO_DEPENDS=y
-CONFIG_AUTOSTART_ARDUINO=y
-CONFIG_ARDUINO_RUN_CORE1=y
-CONFIG_ARDUINO_RUNNING_CORE=1
-CONFIG_ARDUINO_EVENT_RUN_CORE1=y
-CONFIG_ARDUINO_EVENT_RUNNING_CORE=1
-CONFIG_ARDUINO_UDP_RUN_CORE1=y
-CONFIG_ARDUINO_UDP_RUNNING_CORE=1
-CONFIG_DISABLE_HAL_LOCKS=y
-CONFIG_ARDUHAL_LOG_DEFAULT_LEVEL_ERROR=y
-CONFIG_ARDUHAL_LOG_DEFAULT_LEVEL=1
-CONFIG_ARDUHAL_PARTITION_SCHEME_DEFAULT=y
-CONFIG_ARDUHAL_PARTITION_SCHEME="default"
-CONFIG_AUTOCONNECT_WIFI=y
-CONFIG_ARDUINO_SELECTIVE_WiFi=y
-CONFIG_MBEDTLS_PSK_MODES=y
-CONFIG_MBEDTLS_KEY_EXCHANGE_PSK=y
+# ---- electrodacus-esp32 : pure ESP-IDF build defaults ----
 
-#tickrate
-CONFIG_FREERTOS_HZ=1000
+# 4 MB flash on the SBMS WiFi module (nodemcu-32s class)
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
 
-CONFIG_ARDUINO_SELECTIVE_COMPILATION=y
-
-
+# Partition table (nvs / otadata / app0 / app1 / spiffs)
 CONFIG_PARTITION_TABLE_CUSTOM=y
 CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
 CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
 CONFIG_PARTITION_TABLE_OFFSET=0x8000
 CONFIG_PARTITION_TABLE_MD5=y
 
-CONFIG_LWIP_LOCAL_HOSTNAME="SBMS0"
+# 1 ms FreeRTOS tick: the firmware's timing (millis()-style) assumes it
+CONFIG_FREERTOS_HZ=1000
 
-# debug tools
-CONFIG_COMPILER_OPTIMIZATION_LEVEL_RELEASE=y
-
-# disable logging
-CONFIG_ARDUHAL_LOG_DEFAULT_LEVEL_NONE=y
+# Console shares UART0 with the SBMS link at 921600 baud.
+# Logging stays OFF so console output can never corrupt the SBMS byte stream.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_UART_NUM=0
+CONFIG_ESP_CONSOLE_UART_BAUDRATE=921600
 CONFIG_LOG_DEFAULT_LEVEL_NONE=y
 CONFIG_LOG_DEFAULT_LEVEL=0
 CONFIG_BOOTLOADER_LOG_LEVEL_NONE=y
 CONFIG_BOOTLOADER_LOG_LEVEL=0
 
-# disable auto reset after flashing
+# Do not auto-reset the chip after flashing (matches the original workflow)
 CONFIG_ESPTOOLPY_AFTER_NORESET=y
 CONFIG_ESPTOOLPY_AFTER="no_reset"
 
-# enable rtos stats
+# Optimise for size to leave OTA headroom in the 0x140000 app slots
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+
+# FreeRTOS run-time stats behind the /debug endpoint
 CONFIG_FREERTOS_USE_TRACE_FACILITY=y
 CONFIG_FREERTOS_GENERATE_RUN_TIME_STATS=y
 CONFIG_FREERTOS_VTASKLIST_INCLUDE_COREID=y
 CONFIG_FREERTOS_RUN_TIME_STATS_USING_ESP_TIMER=y
 
-# CONFIG_COMPILER_STACK_CHECK_MODE_NORM is not set #default NONE
+# HTTP server: allow long-ish request headers (multipart boundaries etc.)
+# (the URI-handler count is raised via httpd_config_t.max_uri_handlers in code)
+CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
 
+# Sockets: SSE clients plus ordinary requests
+CONFIG_LWIP_MAX_SOCKETS=16
+CONFIG_LWIP_LOCAL_HOSTNAME="SBMS0"
 
-# maybe?
-# CONFIG_ESP32_PANIC_SILENT_REBOOT is not set
-# CONFIG_ESP32_DISABLE_BASIC_ROM_CONSOLE is not set
+# SoftAP support for the station-with-AP-fallback behaviour
+CONFIG_ESP_WIFI_SOFTAP_SUPPORT=y
 
+# mbedTLS PSK modes (carried over from the original config)
+CONFIG_MBEDTLS_PSK_MODES=y
+CONFIG_MBEDTLS_KEY_EXCHANGE_PSK=y
 
-CONFIG_ESP_CONSOLE_UART_DEFAULT=y
-# CONFIG_ESP_CONSOLE_UART_CUSTOM is not set
-# CONFIG_ESP_CONSOLE_UART_NONE is not set
-CONFIG_ESP_CONSOLE_UART_NUM=0
-CONFIG_ESP_CONSOLE_UART_BAUDRATE=921600
+# Daily status e-mail: SMTP-over-TLS verifies the server against the bundled
+# Mozilla CA roots (esp_crt_bundle_attach in app_email.cpp).
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE=y
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_DEFAULT_FULL=y
+# Gmail (and other Google endpoints) present a chain that terminates in a
+# cross-signed root; without this the bundle verifier returns
+# MBEDTLS_ERR_X509_FATAL_ERROR (-0x3000) even though the root is trusted.
+CONFIG_MBEDTLS_CERTIFICATE_BUNDLE_CROSS_SIGNED_VERIFY=y
 
-
-# disable unused arduino components
-CONFIG_ARDUINO_SELECTIVE_AzureIoT=n
-CONFIG_ARDUINO_SELECTIVE_BLE=n
-CONFIG_ARDUINO_SELECTIVE_BluetoothSerial=n
-CONFIG_ARDUINO_SELECTIVE_DNSServer=n
-CONFIG_ARDUINO_SELECTIVE_FFat=n
-CONFIG_ARDUINO_SELECTIVE_NetBIOS=n
-CONFIG_ARDUINO_SELECTIVE_SD=n
-CONFIG_ARDUINO_SELECTIVE_SD_MMC=n
-CONFIG_ARDUINO_SELECTIVE_SimpleBLE=n
-CONFIG_ARDUINO_SELECTIVE_WebServer=n
-CONFIG_ARDUINO_SELECTIVE_Wire=n
-
-# disable unused drivers
-CONFIG_ETH_USE_SPI_ETHERNET=n
+# Allow the "Verify server certificate" e-mail setting to actually disable
+# verification. Without this, esp-tls rejects a connection that has no CA
+# configured (ESP_ERR_MBEDTLS_SSL_SETUP_FAILED) instead of skipping the check.
+CONFIG_ESP_TLS_INSECURE=y
+CONFIG_ESP_TLS_SKIP_SERVER_CERT_VERIFY=y

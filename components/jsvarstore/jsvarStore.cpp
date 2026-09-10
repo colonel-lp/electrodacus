@@ -1,7 +1,16 @@
 #include "jsvarStore.hpp"
 
-//include for yield on esp32
-#include <esp32-hal.h>
+#include "esp_timer.h"
+
+namespace {
+
+//milliseconds since boot (mirrors the Arduino millis() this code was written against)
+inline uint64_t millis()
+{
+    return static_cast<uint64_t>(esp_timer_get_time() / 1000);
+}
+
+} // namespace
 
 JsvarStore::JsvarStore()
     : mState(0)
@@ -15,7 +24,7 @@ JsvarStore::~JsvarStore()
     vSemaphoreDelete(mMutex);
 }
 
-String JsvarStore::handleChar(const char &c)
+std::string JsvarStore::handleChar(const char &c)
 {
 
     if(mState == 0) //search for "var " with the space
@@ -35,7 +44,7 @@ String JsvarStore::handleChar(const char &c)
         {
             reset();
         }
-        
+
     }
     else if(mState == 1) //parse variable name until '='
     {
@@ -82,7 +91,8 @@ String JsvarStore::handleChar(const char &c)
     }
     else if(mState == 3) //parse content until '\"' or ']'
     {
-        if((c == '\"' && mVarContent.charAt(0) == '\"') || (c == ']' && mVarContent.charAt(0) == '[')) //end of content
+        const char first = mVarContent.empty() ? '\0' : mVarContent[0];
+        if((c == '\"' && first == '\"') || (c == ']' && first == '[')) //end of content
         {
             mState = 4;
             mCounter = 0;
@@ -102,7 +112,8 @@ String JsvarStore::handleChar(const char &c)
     {
         if(c == ';') //line was valid, commit
         {
-            if(mVarName.charAt(0) != 'h') //special treatment of history download
+            const char nameFirst = mVarName.empty() ? '\0' : mVarName[0];
+            if(nameFirst != 'h') //special treatment of history download
             {
                 uint64_t time = millis();
                 if( xSemaphoreTake( mMutex, (TickType_t) 5 ) )
@@ -110,20 +121,20 @@ String JsvarStore::handleChar(const char &c)
                     auto var = mVars.find(mVarName);
                     if(var == mVars.end())
                     {
-                        mVars.insert(std::pair<String,SVar>(String(mVarName), {String(mVarContent), time})); //insert in our stored data
+                        mVars.insert(std::pair<std::string,SVar>(mVarName, {mVarContent, time})); //insert in our stored data
                     }
                     else
                     {
-                        var->second.data = String(mVarContent);
+                        var->second.data = mVarContent;
                         var->second.writeTime = time;
                     }
                     xSemaphoreGive(mMutex);
                 }
             }
-            
-            String varName = mVarName;
+
+            std::string varName = mVarName;
             reset();
-            
+
             return varName;
         }
         else //error case
@@ -132,14 +143,14 @@ String JsvarStore::handleChar(const char &c)
         }
     }
 
-    return String();
+    return std::string();
 }
 
 
-String JsvarStore::dumpVars()
+std::string JsvarStore::dumpVars()
 {
-    String dump((char*)0); //do not reserve anything at first
-    dump.reserve(2000); //then reserve huge block, this should fit everything
+    std::string dump;
+    dump.reserve(2000); //reserve a huge block, this should fit everything
 
     uint64_t time = millis();
 
@@ -154,7 +165,7 @@ String JsvarStore::dumpVars()
             }
             else
             {
-                //reconstruct the original line syntax (without temporary strings involved)
+                //reconstruct the original line syntax
                 dump += "var ";
                 dump += it->first;
                 dump += "=";
@@ -171,9 +182,9 @@ String JsvarStore::dumpVars()
 }
 
 
-String JsvarStore::getVar(const String varName) const
+std::string JsvarStore::getVar(const std::string &varName) const
 {
-    String res;
+    std::string res;
     if( xSemaphoreTake( mMutex, (TickType_t) 50 ) )
     {
         auto var = mVars.find(varName);
@@ -194,4 +205,3 @@ void JsvarStore::reset()
     mVarContent.clear();
     timeTaken = 0;
 }
-

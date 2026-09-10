@@ -1,0 +1,194 @@
+:root {
+    --bg: #14171c;
+    --panel: #1e232b;
+    --panel2: #262d37;
+    --fg: #dfe4ea;
+    --muted: #8b95a3;
+    --accent: #4ea1ff;
+    --good: #43c06a;
+    --warn: #e0a030;
+    --bad: #e2564d;
+    --border: #333c48;
+}
+@media (prefers-color-scheme: light) {
+    :root {
+        --bg: #f2f4f7; --panel: #fff; --panel2: #eef1f5; --fg: #1b1f27;
+        --muted: #667085; --border: #d5dbe3;
+    }
+}
+
+* { box-sizing: border-box; }
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+header {
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+header h1 {
+    margin: 0 0 8px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.conn {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+.conn.on  { background: color-mix(in srgb, var(--good) 25%, transparent); color: var(--good); }
+.conn.off { background: color-mix(in srgb, var(--bad) 25%, transparent); color: var(--bad); }
+
+nav { display: flex; gap: 6px; flex-wrap: wrap; }
+nav button {
+    background: var(--panel2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 6px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font: inherit;
+}
+nav button.active { color: var(--fg); border-color: var(--accent); }
+
+main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+.tab { display: none; }
+.tab.active { display: block; }
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+}
+.card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+}
+.card.wide { grid-column: 1 / -1; }
+.card h2 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--muted);
+}
+.card h2 + h2 { margin-top: 14px; }
+
+.big { font-size: 40px; font-weight: 700; line-height: 1; }
+.soc .bar {
+    height: 8px;
+    background: var(--panel2);
+    border-radius: 999px;
+    overflow: hidden;
+    margin: 10px 0 6px;
+}
+.soc .bar > div {
+    height: 100%;
+    width: 0;
+    background: var(--good);
+    transition: width .4s ease;
+}
+.muted { color: var(--muted); font-size: 12px; }
+
+table { width: 100%; border-collapse: collapse; }
+td { padding: 3px 0; }
+td + td { text-align: right; font-variant-numeric: tabular-nums; }
+th {
+    padding: 0 0 4px;
+    text-align: right;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted);
+}
+th:first-child { text-align: left; }
+tr.lo td.now { color: var(--accent); }
+tr.hi td.now { color: var(--warn); }
+
+.flags { display: flex; flex-wrap: wrap; gap: 6px; }
+.flag {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 5px;
+    background: var(--panel2);
+    color: var(--muted);
+    border: 1px solid var(--border);
+}
+.flag.on { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); border-color: var(--warn); }
+
+/* settings */
+form.cfg {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+}
+form.cfg h2 {
+    margin: 0 0 12px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--muted);
+}
+form.cfg label {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+form.cfg input[type=text],
+form.cfg input[type=password],
+form.cfg input[type=number] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font: inherit;
+    width: 100%;
+}
+form.cfg input[type=checkbox] { width: 16px; height: 16px; justify-self: start; }
+button {
+    background: var(--accent);
+    color: #fff;
+    border: 0;
+    border-radius: 6px;
+    padding: 7px 16px;
+    cursor: pointer;
+    font: inherit;
+}
+button.mini { padding: 2px 8px; font-size: 11px; background: var(--panel2); color: var(--muted); border: 1px solid var(--border); }
+button.danger { background: var(--bad); }
+.saved { margin-left: 10px; font-size: 12px; }
+.saved.ok  { color: var(--good); }
+.saved.err { color: var(--bad); }
+
+pre.scroll {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    overflow: auto;
+    max-height: 340px;
+    font-size: 12px;
+    white-space: pre;
+}
+#debug .card, #settings > .card { margin-bottom: 14px; }
+footer { text-align: center; color: var(--muted); font-size: 12px; padding: 20px; }

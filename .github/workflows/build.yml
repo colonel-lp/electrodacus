@@ -1,38 +1,30 @@
 name: ESP-IDF CI
 
-on:
-  push:
-  pull_request:
+on: [push, pull_request]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
         with:
-          # full history so version handling via `git describe` works
-          fetch-depth: 0
+          fetch-depth: 0   # needed for `git describe` (firmware version)
 
-      - name: Build firmware (ESP-IDF)
+      - name: Build with ESP-IDF v5.3
         uses: espressif/esp-idf-ci-action@v1
         with:
-          esp_idf_version: release-v5.1
+          esp_idf_version: v5.3.2
           target: esp32
-          command: |
-            idf.py build
-            # Build the SPIFFS filesystem image from the data/ directory.
-            # Size must match the "spiffs" partition in partitions.csv (0x170000).
-            python "$IDF_PATH/components/spiffs/spiffsgen.py" \
-              $((0x170000)) data build/spiffs.bin
+          command: idf.py build
 
-      - name: Archive production artifacts
+      - name: Archive firmware binaries
         uses: actions/upload-artifact@v4
         with:
           name: firmware-binaries
           path: |
-            build/*.bin
+            build/electrodacus-esp32.bin
+            build/electrodacus-esp32.elf
+            build/electrodacus-esp32.map
             build/bootloader/bootloader.bin
             build/partition_table/partition-table.bin
-            build/flasher_args.json
-          if-no-files-found: error
+            build/spiffs.bin

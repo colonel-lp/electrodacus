@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='4' width='12' height='8' rx='1' fill='none' stroke='%234ea1ff' stroke-width='1.5'/%3E%3Crect x='13' y='6.5' width='2' height='3' fill='%234ea1ff'/%3E%3Crect x='3' y='6' width='6' height='4' fill='%234ea1ff'/%3E%3C/svg%3E">
+<title>SBMS</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+    <h1>SBMS<span id="conn" class="conn off" title="live data stream">offline</span></h1>
+    <nav>
+        <button data-tab="dash" class="active">Dashboard</button>
+        <button data-tab="settings">Settings</button>
+        <button data-tab="debug">Debug</button>
+    </nav>
+</header>
+
+<main>
+    <!-- ---------------------------------------------------------- Dashboard -->
+    <section id="dash" class="tab active">
+        <div class="grid">
+            <div class="card soc">
+                <h2>State of charge</h2>
+                <div class="big"><span id="soc">--</span>%</div>
+                <div class="bar"><div id="socbar"></div></div>
+                <div class="muted" id="clock">--</div>
+            </div>
+
+            <div class="card">
+                <h2>Cells <span class="muted" id="celldelta"></span></h2>
+                <table id="cells">
+                    <thead><tr><th></th><th>Now</th><th>24 h low</th><th>24 h high</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+
+            <div class="card">
+                <h2>Currents</h2>
+                <table id="currents"><tbody>
+                    <tr><td>Battery</td><td id="c_battery">--</td></tr>
+                    <tr><td>PV1</td><td id="c_pv1">--</td></tr>
+                    <tr><td>PV2</td><td id="c_pv2">--</td></tr>
+                    <tr><td>Ext. load</td><td id="c_extLoad">--</td></tr>
+                </tbody></table>
+            </div>
+
+            <div class="card">
+                <h2>Temperature</h2>
+                <table><tbody>
+                    <tr><td>Internal</td><td id="t_int">--</td></tr>
+                    <tr><td>External</td><td id="t_ext">--</td></tr>
+                </tbody></table>
+                <h2>Aux</h2>
+                <table><tbody>
+                    <tr><td>AD2 / AD3 / AD4</td><td id="ad">--</td></tr>
+                    <tr><td>heat1 / heat2</td><td id="heat">--</td></tr>
+                </tbody></table>
+            </div>
+
+            <div class="card wide">
+                <h2>Flags</h2>
+                <div id="flags" class="flags"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ----------------------------------------------------------- Settings -->
+    <section id="settings" class="tab">
+        <div id="cfgforms"></div>
+
+        <div class="card">
+            <h2>Cell voltage history</h2>
+            <p class="muted">The dashboard tracks a rolling ~24&nbsp;hour low and
+            high for every cell. Resetting clears that history and starts a fresh
+            window. History is kept in RAM and also resets on reboot.</p>
+            <button id="cellreset">Reset 24 h min/max</button>
+            <span id="cellresetstatus" class="saved"></span>
+        </div>
+    </section>
+
+    <!-- -------------------------------------------------------------- Debug -->
+    <section id="debug" class="tab">
+        <div class="card">
+            <h2>Firmware update (OTA)</h2>
+            <p class="muted">Pick a <code>.bin</code>. A file whose name starts with
+            <code>spiffs</code> updates the filesystem; anything else updates the
+            firmware. The device reboots automatically on success.</p>
+            <input type="file" id="otafile" accept=".bin">
+            <button id="otago">Upload</button>
+            <span id="otastatus"></span>
+        </div>
+
+        <div class="card">
+            <h2>Power</h2>
+            <button id="reboot" class="danger">Reboot device</button>
+            <span id="rebootstatus"></span>
+        </div>
+
+        <div class="card">
+            <h2>Status e-mail <button data-load="email" class="mini">refresh</button></h2>
+            <p class="muted">Sends immediately using the current SMTP settings and
+            the latest SBMS reading. The result below shows the exact step that
+            failed and the server's reply.</p>
+            <button id="emailtest">Send test e-mail now</button>
+            <pre id="emailstatus" class="scroll">--</pre>
+        </div>
+
+        <div class="card">
+            <h2>Tasks <button data-load="debug" class="mini">refresh</button></h2>
+            <pre id="taskdump" class="scroll">--</pre>
+        </div>
+
+        <div class="card">
+            <h2>Raw variables <button data-load="raw" class="mini">refresh</button></h2>
+            <pre id="rawdump" class="scroll">--</pre>
+        </div>
+    </section>
+</main>
+
+<footer>firmware <span id="version">…</span></footer>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,7 +1,11 @@
 # electrodacus-esp32
-[![Build Status](https://travis-ci.com/armageddon421/electrodacus-esp32.svg?token=FQR4zoDToBXdEtrqsMAE&branch=master)](https://travis-ci.com/armageddon421/electrodacus-esp32)
 
 Firmware for the esp32 on the WiFi-addon of the [electrodacus BMS](http://www.electrodacus.com/).
+
+Built with **ESP-IDF v5.3** only (no Arduino framework). It can be developed and
+maintained from VS Code with the official
+[Espressif IDF extension](https://marketplace.visualstudio.com/items?itemName=espressif.esp-idf-extension),
+or from the command line with `idf.py`.
 
 ## Current features
 
@@ -12,7 +16,7 @@ Firmware for the esp32 on the WiFi-addon of the [electrodacus BMS](http://www.el
 * Receiving and caching data from SBMS with unaltered firmware. (ignores AT commands)
 * Parsing data from SBMS, usable by Consumers like the MQTT client. (currently only live data)
 * MQTT client: publish live data in JSON format whenever it is received from the SBMS main board
-* OTA Updates via ArduinoOTA
+* Browser-based OTA updates for both firmware and filesystem at `/update`
 
 
 ## Planned features
@@ -36,7 +40,7 @@ There will be browser based OTA updates and binary releases very soon. For now, 
 
 ### Requirements
 
-If your SBMS does not come pre-flashed with an OTA capable firmware version yet, you need a USB to Serial/UART converter with an interface level of 3.3V. **5V will destroy your ESP32.** And any "PC" with any OS supported by plattformIO with installed python (2.7 should do). Make sure pip works.
+If your SBMS does not come pre-flashed with an OTA capable firmware version yet, you need a USB to Serial/UART converter with an interface level of 3.3V. **5V will destroy your ESP32.** You also need a "PC" (Linux, macOS or Windows) with [ESP-IDF v5.3](https://docs.espressif.com/projects/esp-idf/en/v5.3.2/esp32/get-started/index.html) installed — either the standalone tools (`install.sh` / `install.bat`) or the VS Code Espressif IDF extension.
 
 ### Wired Procedure
 
@@ -51,49 +55,52 @@ The basic procedure is as follows:
 6. Verify you can reach the device via WiFi. It should create an Access Point with a name starting with SBMS, followed by 12 characters representing a MAC-Address. The default password for that AP is "electrodacus" (without the quotes). Connect to it by going to `192.168.4.1` in your browser.
 7. Disconnect everything you just connected before plugging the WiFi module back onto your SBMS.
 
-### ArduinoOTA procedure
+### Over-the-air updates
 
-Make sure you are connected to the same WiFi as your SBMS, or are directly connected to its own WiFi.
-Flash the firmware (see next section). In sections 4 and 6, add `-e ota --upload-port [IP/hostname]` to the end of the commands.
-If you are directly connected to the SBMS' own WiFi, the IP will be `192.168.4.1`.
+Once a version with OTA support is running, further updates go through the web
+interface: browse to `http://[IP of the device]/update`, pick a firmware
+`electrodacus-esp32.bin` or a filesystem `spiffs.bin`, and upload. Uploading the
+filesystem image reboots the device when done; upload firmware first, then the
+filesystem, if you want to update both in one go. By default OTA is only accepted
+in the first 5 minutes after boot (configurable in Settings).
 
 ### Installation / Flashing
 
-Open a terminal or cmd window.
+Open a terminal.
 
-1. Clone the repository by either downloading the zip file manually or running:
+1. Clone the repository:
 ```
 git clone https://github.com/armageddon421/electrodacus-esp32.git
-```
-And enter the directory
-```
 cd electrodacus-esp32
 ```
-2. Install PlatformIO
+2. Activate your ESP-IDF environment (skip if you use the VS Code extension):
 ```
-pip install -U platformio
-platformio update
+. $HOME/esp/esp-idf/export.sh
 ```
-3. Compile the code. Platformio will automatically install any missing dependancies. Check for any errors.
+3. Set the target and build. The managed dependency (ArduinoJson) is fetched
+   automatically. The `data/` directory is built into `spiffs.bin`.
 ```
-platformio run
+idf.py set-target esp32
+idf.py build
 ```
-If all goes well, you should see memory usage bars like these and a line below that reading [SUCCESS] in the middle.
+   A successful build ends with a line like:
 ```
-RAM:   [=         ]  13.5% (used 44224 bytes from 327680 bytes)
-Flash: [=======   ]  74.3% (used 973461 bytes from 1310720 bytes)
+electrodacus-esp32.bin binary size 0xcc5b0 bytes. Smallest app partition is 0x140000 bytes. 0x73a50 bytes (36%) free.
 ```
-4. Flash! Platformio will usually find the right serial port to use automatically.
+4. Flash firmware, partition table, bootloader and filesystem in one step
+   (PlatformIO auto-detected the port; with `idf.py` pass it explicitly if
+   needed with `-p`):
 ```
-platformio run --target upload
+idf.py -p /dev/ttyUSB0 flash
 ```
-Note: For OTA updates add `-e ota --upload-port [IP/hostname]` to the end of the commands.
-5. After the process is finished, replug your USB (or power supply) to reboot the ESP32 and make sure the GPIO0 is still connected to GND so you can flash again.
-6. Upload the filesystem
-```
-platformio run --target uploadfs
-```
-7. After the process is finished, disconnect GPIO0 and replug your USB (or power supply) to reboot the ESP32. That should be it.
+5. Because the build sets "no reset after flashing", replug your USB (or power
+   supply) to reboot the ESP32. Keep GPIO0 tied to GND if you want to flash again.
+6. To watch the (normally silent) console or debug, use `idf.py -p /dev/ttyUSB0 monitor`.
+   Note UART0 is shared with the SBMS link, so keep IDF logging disabled.
+7. Disconnect GPIO0 and replug power. That should be it.
+
+From the VS Code Espressif IDF extension the same steps are the "Set Espressif
+target", "Build", and "Flash" buttons on the status bar.
 
 ## Frequently asked Questions (probably)
 

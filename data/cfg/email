@@ -1,0 +1,12 @@
+{
+    "em_enabled": false,
+    "em_hour": 8,
+    "em_host": "",
+    "em_port": 465,
+    "em_user": "",
+    "em_password": "",
+    "em_from": "",
+    "em_to": "",
+    "em_ssl": true,
+    "em_tls_verify": true
+}
