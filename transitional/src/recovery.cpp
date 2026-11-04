@@ -209,7 +209,10 @@ void statusResponse(AsyncWebServerRequest *request) {
     }
     if (doc.overflowed()) { respond(request, 500, "Status allocation failed"); return; }
     String out;
-    if (!serializeJson(doc, out)) { respond(request, 500, "Status serialization failed"); return; }
+    const size_t length = measureJson(doc);
+    if (!out.reserve(length + 1) || serializeJson(doc, out) != length || out.length() != length) {
+        respond(request, 500, "Status serialization failed"); return;
+    }
     respond(request, 200, out, "application/json");
 }
 
@@ -242,7 +245,10 @@ void settingsResponse(AsyncWebServerRequest *request) {
     doc["complete"] = complete;
     if (doc.overflowed()) { respond(request, 500, "Settings backup allocation failed"); return; }
     String out;
-    if (!serializeJson(doc, out)) { respond(request, 500, "Settings backup serialization failed"); return; }
+    const size_t length = measureJson(doc);
+    if (!out.reserve(length + 1) || serializeJson(doc, out) != length || out.length() != length) {
+        respond(request, 500, "Settings backup serialization failed"); return;
+    }
     auto *response = request->beginResponse(200, "application/json", out);
     response->addHeader("Content-Disposition", "attachment; filename=ella-sbms-settings.json");
     response->addHeader("Cache-Control", "no-store");
