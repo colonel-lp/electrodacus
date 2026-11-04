@@ -1,0 +1,50 @@
+name: Ella transitional firmware
+
+on:
+  push:
+    branches: [Ella-Monitoring]
+    paths: ['transitional/**', '.github/workflows/transitional.yml']
+  pull_request:
+    paths: ['transitional/**', '.github/workflows/transitional.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  recovery-policy:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Recovery state, image prefix and upload-boundary tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror -fsanitize=address,undefined \
+            -Itransitional/src transitional/tests/recovery_policy_test.cpp -o /tmp/recovery-policy
+          /tmp/recovery-policy
+          python3 -m unittest discover -s transitional/tests -p 'test_*.py' -v
+  firmware:
+    needs: recovery-policy
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install pinned PlatformIO
+        run: pip install platformio==6.1.18
+      - name: Build application firmware
+        run: pio run --project-dir transitional --environment ota
+      - name: Validate application artifact and generate checksums
+        run: python3 transitional/tools/check_firmware.py transitional/.pio/build/ota/firmware.bin
+      - name: Archive application only
+        uses: actions/upload-artifact@v4
+        with:
+          name: ella-transitional-app-only
+          if-no-files-found: error
+          path: |
+            transitional/.pio/build/ota/firmware.bin
+            transitional/.pio/build/ota/firmware.bin.sha256
+            transitional/.pio/build/ota/firmware.elf
+

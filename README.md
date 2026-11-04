@@ -1,3 +1,8 @@
+> **Ella first-update work:** the firmware-only transitional build is in
+> [`transitional/`](transitional/README.md). It preserves the installed ArduinoOTA
+> updater and existing filesystem. The ESP-IDF project below is the later rewrite;
+> do not use its filesystem/bootloader images for the first transition.
+
 # electrodacus-esp32
 
 Firmware for the esp32 on the WiFi-addon of the [electrodacus BMS](http://www.electrodacus.com/).
@@ -110,3 +115,4 @@ There will be binary releases with OTA update via web interface very soon.
 #### What is MQTT?
 [MQTT](http://mqtt.org/) is a publisher-subscriber based message passing protocol that uses a central server called "broker" to relay the messages. Many IoT applications nowadays support MQTT, devices as well as dashboard and home automation solutions. It is easy to locally host your own local MQTT-Broker (for example [Mosquitto](https://mosquitto.org/)) for your home automation needs, a raspberry pi is already enough.
 I personally use [node-red](https://nodered.org/) as "glue logic" to connect all my sensors and actors, feed my databases and for creating logic.
+
