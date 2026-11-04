@@ -22,4 +22,10 @@ for target in COMMAND_LINE_TARGETS:
         raise RuntimeError("This transitional project allows application firmware only; filesystem/erase targets are disabled")
 if env.GetProjectOption("upload_protocol") != "espota":
     raise RuntimeError("The transitional upload protocol must be espota")
+if not env.subst("$UPLOAD_PORT"):
+    if "upload" in COMMAND_LINE_TARGETS:
+        raise RuntimeError("Supply the actual device with --upload-port; no default destination is configured")
+    # The old platform configures its uploader even for a compile-only command.
+    # .invalid is reserved; this value is never used by an allowed upload.
+    env.Replace(UPLOAD_PORT="build-only.invalid")
 

@@ -112,13 +112,15 @@ void respond(AsyncWebServerRequest *request, int status, const String &message,
 }
 
 void abortUpload(const char *error) {
-    if (upload.open) esp_ota_abort(upload.handle);
+    // ESP-IDF 4.0 has no esp_ota_abort(). esp_ota_end() releases the handle on
+    // every result and does not select a boot partition, even for a valid image.
+    if (upload.open) esp_ota_end(upload.handle);
     upload = Upload{};
     lastError = error;
 }
 
 void failUpload(int status, const char *error) {
-    if (upload.open) esp_ota_abort(upload.handle);
+    if (upload.open) esp_ota_end(upload.handle); // free only; never select this slot
     upload.open = false;
     upload.failed = true;
     upload.status = status;
@@ -177,7 +179,7 @@ void statusResponse(AsyncWebServerRequest *request) {
     doc["project"] = app->project_name;
     doc["recovery_ap"] = apName;
     doc["ota_allowed"] = otaAllowed();
-    doc["espota_running"] = arduinoStarted;
+    doc["espota_enabled"] = arduinoStarted;
     doc["upload_active"] = upload.owner != nullptr || arduinoBusy;
     doc["last_error"] = lastError;
     doc["free_heap"] = ESP.getFreeHeap();
@@ -193,13 +195,17 @@ void statusResponse(AsyncWebServerRequest *request) {
         doc["ota_image_state"] = static_cast<int>(state);
     else doc["ota_image_state"] = nullptr;
     JsonArray partitions = doc.createNestedArray("partitions");
-    auto it = esp_partition_find(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, nullptr);
-    while (it) {
-        const auto *p = esp_partition_get(it);
-        auto out = partitions.createNestedObject();
-        out["label"] = p->label; out["type"] = p->type; out["subtype"] = p->subtype;
-        out["offset"] = p->address; out["size"] = p->size; out["encrypted"] = p->encrypted;
-        it = esp_partition_next(it);
+    // The retained SDK predates ESP_PARTITION_TYPE_ANY. Enumerate every valid
+    // type, including user-defined types, without assuming the source table.
+    for (unsigned type = 0; type < 0xff; ++type) {
+        auto it = esp_partition_find(static_cast<esp_partition_type_t>(type), ESP_PARTITION_SUBTYPE_ANY, nullptr);
+        while (it) {
+            const auto *p = esp_partition_get(it);
+            auto out = partitions.createNestedObject();
+            out["label"] = p->label; out["type"] = p->type; out["subtype"] = p->subtype;
+            out["offset"] = p->address; out["size"] = p->size; out["encrypted"] = p->encrypted;
+            it = esp_partition_next(it);
+        }
     }
     if (doc.overflowed()) { respond(request, 500, "Status allocation failed"); return; }
     String out;
@@ -447,7 +453,7 @@ bool tick() {
             if (upload.owner && (elapsed(now, upload.last, kUploadIdleMs) || elapsed(now, upload.started, kUploadMaxMs)))
                 abortUpload("Firmware upload timed out; current application remains selected");
             const bool networkReady = WiFi.status() == WL_CONNECTED ||
-                static_cast<uint32_t>(WiFi.softAPIP()) != 0;
+                ((WiFi.getMode() & WIFI_AP) && static_cast<uint32_t>(WiFi.softAPIP()) != 0);
             if (!healthTried && !busy() && networkReady && elapsed(now, bootSince, kHealthyMs)) {
                 healthTried = true; // a storage fault must not cause a flash-write loop
                 // Confirms an actual pending state if present. This does not
@@ -474,12 +480,8 @@ bool tick() {
 }
 
 void registerRoutes(AsyncWebServer &server) {
-    server.on("/recovery", HTTP_GET, [](AsyncWebServerRequest *request) {
-        auto *response = request->beginResponse_P(200, "text/html", recoveryPage);
-        response->addHeader("Cache-Control", "no-store");
-        response->addHeader("X-Frame-Options", "DENY");
-        request->send(response);
-    });
+    // The pinned AsyncWebServer also matches child paths. Register the page
+    // after its specific GET endpoints so it cannot shadow status/export.
     server.on("/recovery/status", HTTP_GET, statusResponse);
     server.on("/recovery/settings", HTTP_GET, settingsResponse);
     server.on("/recovery/firmware", HTTP_POST, uploadComplete, nullptr, uploadBody);
@@ -490,6 +492,12 @@ void registerRoutes(AsyncWebServer &server) {
     server.on("/update", HTTP_GET, [](AsyncWebServerRequest *request) { request->redirect("/recovery"); });
     server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request) {
         respond(request, 410, "Filesystem/multipart updates disabled. Use /recovery/firmware for the application only.");
+    });
+    server.on("/recovery", HTTP_GET, [](AsyncWebServerRequest *request) {
+        auto *response = request->beginResponse_P(200, "text/html", recoveryPage);
+        response->addHeader("Cache-Control", "no-store");
+        response->addHeader("X-Frame-Options", "DENY");
+        request->send(response);
     });
 }
 } // namespace ella
