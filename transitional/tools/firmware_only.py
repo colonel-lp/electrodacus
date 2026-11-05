@@ -12,7 +12,7 @@ try:
     ).strip()
 except (OSError, subprocess.CalledProcessError):
     version = "unknown-source"
-env.Append(CPPDEFINES=[("GIT_VERSION", "ella-transition-" + version)])
+env.Append(CPPDEFINES=[("GIT_VERSION", "ella-transition-2-" + version)])
 
 # Reject dangerous targets before PlatformIO can touch the installed board.
 # No serial environment is provided: serial uploads can include the bootloader

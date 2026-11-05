@@ -20,9 +20,44 @@ struct BootRecord {
     uint8_t image[16] = {};
 };
 
+// A one-shot software-reset request in RTC memory. It is never trusted after
+// power loss, a crash/watchdog reset, or when a different application is running.
+// Plain POD: RTC_NOINIT_ATTR must not receive a C++ startup initializer.
+struct RestartHint {
+    uint32_t magic;
+    uint32_t mode; // 1 normal, 2 recovery
+    uint32_t inverse;
+    uint8_t image[16];
+};
+constexpr uint32_t kHintMagic = 0x454c5232;
+inline void armRestartHint(RestartHint &hint, bool recovery, const uint8_t *image) {
+    hint.magic = 0;
+    hint.mode = recovery ? 2 : 1;
+    hint.inverse = ~hint.mode;
+    std::memcpy(hint.image, image, sizeof(hint.image));
+    hint.magic = kHintMagic;
+}
+inline uint32_t consumeRestartHint(RestartHint &hint, bool softwareReset, const uint8_t *image) {
+    const bool valid = softwareReset && hint.magic == kHintMagic &&
+        (hint.mode == 1 || hint.mode == 2) && hint.inverse == ~hint.mode &&
+        std::memcmp(hint.image, image, sizeof(hint.image)) == 0;
+    const uint32_t mode = valid ? hint.mode : 0;
+    hint.magic = 0;
+    return mode;
+}
+
 inline bool validRecord(const BootRecord &record) {
     return record.magic == kRecordMagic && record.version == 1 &&
            record.attempts <= kFailedBootLimit && record.forced <= 1;
+}
+
+template <typename Persist>
+bool completeHealth(BootRecord &record, bool recovery, bool confirmed, Persist persist) {
+    if (!confirmed) return false;
+    record.attempts = 0;
+    if (recovery) record.forced = 1;
+    persist(); // failure must not disable otherwise healthy recovery services
+    return true;
 }
 
 // Three unconfirmed starts cause recovery on the following boot. Bind the

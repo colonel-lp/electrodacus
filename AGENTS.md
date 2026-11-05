@@ -1,6 +1,6 @@
 # Ella ESP32 firmware — repository instructions
 
-These instructions apply throughout `colonel-lp/electrodacus-esp32`. The active working branch is `Ella-Monitoring`.
+These instructions apply throughout `colonel-lp/electrodacus`. The active working branch is `ESP32-development` (renamed from `Ella-Monitoring`).
 
 ## Authorization and communication
 
@@ -13,7 +13,7 @@ These instructions apply throughout `colonel-lp/electrodacus-esp32`. The active 
 
 ## Repository and firmware bases
 
-- Work on `Ella-Monitoring` unless the owner explicitly selects another branch. Preserve `master` and the `helgef-base` reference.
+- Work on `ESP32-development` unless the owner explicitly selects another branch. Preserve the other firmware base branches.
 - The repository root contains helgef's standalone ESP-IDF rewrite: `main/`, `components/`, `frontend/`, `data/`, root CMake and SDK configuration.
 - `transitional/` contains a separate build based on the original Arduino/ESP-IDF firmware. Its ArduinoOTA and recovery additions are not integrated into the root rewrite. Never describe those additions as present in helgef's firmware.
 - Read `transitional/README.md` and `transitional/WORK-CHECKLIST.md` when working on the transition. Use the current build files and operating instructions for exact commands.
@@ -63,3 +63,4 @@ These instructions apply throughout `colonel-lp/electrodacus-esp32`. The active 
 - Keep one canonical document per topic. Update affected instructions and validation/checkpoint records with actual results; keep proposals and uninstalled changes clearly marked as pending.
 - Preserve necessary operating/update/recovery commands, hashes, compatibility requirements, backups and evidence limits. Keep public documents free of private device readings, inventory, addresses and runtime/process snapshots.
 - Do not claim firmware was flashed, recovered over Wi-Fi or hardware-tested unless that happened. When a build or transfer cannot complete, say so and preserve the completed work.
+

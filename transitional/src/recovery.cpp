@@ -1,5 +1,6 @@
 #include "recovery.hpp"
 #include "recovery_policy.hpp"
+#include "bootloader_info.hpp"
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
@@ -12,6 +13,9 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_system.h"
+#include "esp_spi_flash.h"
+#include "esp_flash_encrypt.h"
+#include "esp_attr.h"
 #include "nvs.h"
 #include "freertos/semphr.h"
 
@@ -25,6 +29,9 @@ struct Guard {
 };
 nvs_handle storage = 0;
 bool storageReady = false;
+bool recordWritable = false;
+const char *recordWarning = "";
+RTC_NOINIT_ATTR RestartHint restartHint;
 bool inRecovery = false;
 bool fsReady = false;
 bool healthy = false;
@@ -58,8 +65,22 @@ struct Upload {
 } upload;
 
 bool saveRecord() {
-    return storageReady && nvs_set_blob(storage, "boot", &record, sizeof(record)) == ESP_OK &&
+    recordWritable = storageReady && nvs_set_blob(storage, "boot", &record, sizeof(record)) == ESP_OK &&
            nvs_commit(storage) == ESP_OK;
+    recordWarning = recordWritable ? "" : "Boot record unavailable; persistent boot tracking is degraded";
+    return recordWritable;
+}
+
+void prepareRestart(const esp_partition_t *target, bool recovery) {
+    // Persistence is best effort, never a prerequisite for repairing firmware.
+    // RTC permits one explicit normal/recovery restart even when NVS is full.
+    esp_app_desc_t desc = {};
+    if (!target || esp_ota_get_partition_description(target, &desc) != ESP_OK) return;
+    record = BootRecord{};
+    std::memcpy(record.image, desc.app_elf_sha256, sizeof(record.image));
+    record.forced = recovery;
+    saveRecord();
+    armRestartHint(restartHint, recovery, desc.app_elf_sha256);
 }
 
 bool layoutMatches() {
@@ -137,6 +158,8 @@ body{font:16px system-ui;max-width:780px;margin:30px auto;padding:0 18px;backgro
 button,a,input{font:inherit;margin:6px 8px 6px 0}button{padding:9px}a{color:#83d8cf}pre{white-space:pre-wrap;overflow-wrap:anywhere}
 </style><h1>Ella SBMS recovery</h1>
 <p>This page is built into the application firmware. Settings and web files are read only in this transitional build.</p>
+<p id="bootloader">Installed bootloader: reading…</p>
+<button id="refresh">Refresh status</button>
 <p><a href="/recovery/settings">Download settings backup (contains passwords)</a></p>
 <input id="file" type="file" accept=".bin"><button id="upload">Upload application firmware</button>
 <p>Upload only the application .bin. Keep this page open until the response. A successful upload reboots automatically.</p>
@@ -144,7 +167,12 @@ button,a,input{font:inherit;margin:6px 8px 6px 0}button{padding:9px}a{color:#83d
 <button data-action="previous">Boot verified previous slot</button><p id="result" role="status"></p><pre id="status">Loading status…</pre>
 <script>
 const status=document.getElementById('status'),result=document.getElementById('result');
-async function refresh(){try{const r=await fetch('/recovery/status',{cache:'no-store'});status.textContent=JSON.stringify(await r.json(),null,2)}catch(e){status.textContent=String(e)}}
+async function refresh(){try{const r=await fetch('/recovery/status',{cache:'no-store'});const s=await r.json();status.textContent=JSON.stringify(s,null,2);
+const b=s.installed_bootloader;document.getElementById('bootloader').textContent='Installed bootloader ESP-IDF: '+b.idf_version+
+(b.identification_source==='embedded-text-inferred'?' (inferred from embedded text)':'')+
+(b.project_version!==null?' · bootloader project version '+b.project_version:'')+(b.detail?' — '+b.detail:'')+'. Rollback support remains unverified.';
+}catch(e){status.textContent=String(e)}}
+document.getElementById('refresh').onclick=refresh;
 document.querySelectorAll('[data-action]').forEach(b=>b.onclick=async()=>{const a=b.dataset.action;
 if(!window.confirm('Confirm '+a+'?'))return;try{const r=await fetch('/recovery/'+a,{method:'POST',headers:{'X-Ella-Confirm':a}});result.textContent=await r.text()}catch(e){result.textContent=String(e)}});
 document.getElementById('upload').onclick=async()=>{const f=document.getElementById('file').files[0];if(!f)return;
@@ -164,6 +192,8 @@ void statusResponse(AsyncWebServerRequest *request) {
     doc["boot_attempts"] = record.attempts;
     doc["healthy"] = healthy;
     doc["boot_record_ready"] = storageReady;
+    doc["boot_record_writable"] = recordWritable;
+    doc["boot_record_warning"] = recordWarning;
     doc["filesystem_mounted"] = fsReady;
     doc["filesystem_writes_enabled"] = false;
     doc["partition_layout_compatible"] = layoutMatches();
@@ -174,6 +204,25 @@ void statusResponse(AsyncWebServerRequest *request) {
     doc["application_rollback_config"] = false;
 #endif
     doc["idf_version"] = esp_get_idf_version();
+    doc["application_idf_version"] = esp_get_idf_version();
+    static bool bootloaderRead = false;
+    static BootloaderInfo bootloader;
+    if (!bootloaderRead) {
+        bootloaderRead = true;
+        if (esp_flash_encryption_enabled()) bootloader.error = "Encrypted flash; bootloader identification unavailable";
+        else bootloader = readBootloaderInfo([](size_t offset, void *data, size_t length) {
+            return offset <= kBootloaderRegionSize && length <= kBootloaderRegionSize - offset &&
+                spi_flash_read(kBootloaderAddress + offset, data, length) == ESP_OK;
+        });
+    }
+    auto loader = doc.createNestedObject("installed_bootloader");
+    loader["idf_version"] = bootloader.idfVersion[0] ? bootloader.idfVersion : "Unknown";
+    loader["identification_source"] = bootloader.source;
+    loader["detail"] = bootloader.error;
+    if (bootloader.hasProjectVersion) loader["project_version"] = bootloader.projectVersion;
+    else loader["project_version"] = nullptr;
+    loader["compiled"] = bootloader.compiled[0] ? bootloader.compiled : "Unknown";
+    loader["rollback_support"] = "unverified";
     const auto *app = esp_ota_get_app_description();
     doc["version"] = app->version;
     doc["project"] = app->project_name;
@@ -260,7 +309,7 @@ void uploadBody(AsyncWebServerRequest *request, uint8_t *data, size_t len, size_
     Guard guard;
     if (!guard.locked || !confirm(request, "firmware")) return;
     if (index == 0) {
-        if (busy() || !otaAllowed()) return;
+        if (busy() || !otaAllowed() || !healthy) return;
         upload = Upload{};
         upload.owner = request;
         upload.target = esp_ota_get_next_update_partition(nullptr);
@@ -308,7 +357,8 @@ void uploadComplete(AsyncWebServerRequest *request) {
     Guard guard;
     if (!guard.locked) { respond(request, 503, "Recovery state unavailable"); return; }
     if (!confirm(request, "firmware")) { respond(request, 403, "Missing X-Ella-Confirm: firmware"); return; }
-    if (upload.owner != request) { respond(request, 409, otaAllowed() ? "No active upload, timed out, or updater busy" : "OTA time window has closed"); return; }
+    if (upload.owner != request) { respond(request, 409, !healthy ? "Wait for the 60-second startup check" :
+        (otaAllowed() ? "No active upload, timed out, or updater busy" : "OTA time window has closed")); return; }
     if (!upload.failed && (!upload.open || upload.received != upload.expected)) failUpload(400, "Incomplete firmware upload");
     if (!upload.failed) {
         const esp_err_t result = esp_ota_end(upload.handle); // validates full image; frees handle on every result
@@ -316,9 +366,7 @@ void uploadComplete(AsyncWebServerRequest *request) {
         if (result != ESP_OK || !validImage(upload.target)) failUpload(400, "Firmware image validation failed");
     }
     if (!upload.failed) {
-        record.forced = 0; record.attempts = 0;
-        if (!saveRecord()) failUpload(500, "Could not prepare boot record; firmware not selected");
-        else if (esp_ota_set_boot_partition(upload.target) != ESP_OK) failUpload(500, "Could not select new firmware");
+        if (esp_ota_set_boot_partition(upload.target) != ESP_OK) failUpload(500, "Could not select new firmware");
     }
     if (upload.failed) {
         const int status = upload.status;
@@ -327,6 +375,7 @@ void uploadComplete(AsyncWebServerRequest *request) {
         respond(request, status, error);
         return;
     }
+    prepareRestart(upload.target, false);
     upload = Upload{};
     lastError = "";
     scheduleReboot();
@@ -343,24 +392,32 @@ void command(AsyncWebServerRequest *request, const char *action) {
     if (std::strcmp(action, "previous") == 0 && (!layoutMatches() || !validImage(previous))) {
         respond(request, 409, "Previous slot has no verified electrodacus application"); return;
     }
-    const BootRecord old = record;
-    record.attempts = 0;
-    record.forced = std::strcmp(action, "enter") == 0;
-    if (!saveRecord()) { record = old; respond(request, 500, "Boot record write failed"); return; }
     if (std::strcmp(action, "previous") == 0 && esp_ota_set_boot_partition(previous) != ESP_OK) {
-        record = old; saveRecord();
         respond(request, 500, "Could not select previous slot"); return;
     }
+    prepareRestart(std::strcmp(action, "previous") == 0 ? previous : esp_ota_get_running_partition(),
+                   std::strcmp(action, "enter") == 0);
     scheduleReboot();
-    respond(request, 200, "Boot request saved. Restarting.");
+    respond(request, 200, recordWritable ? "Boot request saved. Restarting." :
+        "Restarting. Boot storage unavailable; request applies to this software restart only.");
 }
 } // namespace
+
+bool validateBootSelection(const esp_partition_t *partition) {
+    Guard guard;
+    if (!guard.locked || !validImage(partition)) {
+        lastError = "Boot selection rejected: not a verified electrodacus application";
+        return false;
+    }
+    return true;
+}
 
 void begin() {
     bootSince = millis();
     mutex = xSemaphoreCreateRecursiveMutex();
     WiFi.persistent(false); // do not rewrite the SDK's stored Wi-Fi settings
     const auto *app = esp_ota_get_app_description();
+    const uint32_t requested = consumeRestartHint(restartHint, esp_reset_reason() == ESP_RST_SW, app->app_elf_sha256);
     const esp_err_t opened = nvs_open("ella_recovery", NVS_READWRITE, &storage);
     storageReady = opened == ESP_OK;
     if (!mutex || !storageReady) {
@@ -373,11 +430,17 @@ void begin() {
             record = BootRecord{};
             inRecovery = true; reason = "boot-record-invalid";
         }
+        if (requested) { record.forced = requested == 2; record.attempts = 0; }
         if (startBoot(record, app->app_elf_sha256)) {
             inRecovery = true;
             reason = record.forced ? "requested" : "repeated-unconfirmed-boots";
         }
         if (!saveRecord()) { inRecovery = true; reason = "boot-record-write-failed"; }
+    }
+    if (!storageReady) recordWarning = "Boot storage unavailable; persistent boot tracking is degraded";
+    if (requested && mutex) {
+        inRecovery = requested == 2;
+        reason = inRecovery ? "requested" : "requested-normal";
     }
     char name[32];
     const uint64_t mac = ESP.getEfuseMac();
@@ -406,23 +469,21 @@ void otaSetup() {
     ArduinoOTA.setRebootOnSuccess(false)
       .onStart([]() {
         Guard guard;
-        if (!guard.locked || ArduinoOTA.getCommand() != U_FLASH || busy() || !layoutMatches() || !otaAllowed()) {
-            Update.abort(); lastError = "ArduinoOTA rejected: firmware only, updater busy, or incompatible layout";
+        if (!guard.locked || ArduinoOTA.getCommand() != U_FLASH || busy() || !healthy || !layoutMatches() || !otaAllowed()) {
+            Update.abort(); lastError = "ArduinoOTA rejected: wait for health check; firmware only, updater busy, or incompatible layout";
             return;
         }
         arduinoBusy = true;
       })
       .onEnd([]() {
         Guard guard;
-        const auto *running = esp_ota_get_running_partition();
-        const auto *selected = esp_ota_get_boot_partition();
-        bool ok = guard.locked && arduinoBusy && selected && running &&
-                  selected->address != running->address && validImage(selected);
-        if (ok) { record.forced = 0; record.attempts = 0; ok = saveRecord(); }
-        if (!ok) {
-            if (running) esp_ota_set_boot_partition(running);
-            lastError = "ArduinoOTA image or boot record validation failed";
-        } else { lastError = ""; scheduleReboot(); }
+        // Update.end() has already passed our wrapped boot selector. No checks
+        // that can reject the image belong here: ArduinoOTA has now sent OK.
+        if (guard.locked && arduinoBusy) {
+            prepareRestart(esp_ota_get_boot_partition(), false);
+            lastError = "";
+            scheduleReboot();
+        }
         arduinoBusy = false;
       })
       .onError([](ota_error_t) {
@@ -469,9 +530,8 @@ bool tick() {
                 bool confirmed = true;
                 if (running && esp_ota_get_state_partition(running, &state) == ESP_OK && state == ESP_OTA_IMG_PENDING_VERIFY)
                     confirmed = esp_ota_mark_app_valid_cancel_rollback() == ESP_OK;
-                record.attempts = 0;
-                if (inRecovery) record.forced = 1;
-                healthy = confirmed && saveRecord();
+                // Storage failure disables persistence, not the recovery exits.
+                healthy = completeHealth(record, inRecovery, confirmed, saveRecord);
                 if (!healthy) { reason = "health-confirmation-failed"; lastError = reason; }
             }
             restart = rebootPending && elapsed(now, rebootSince, 1000);

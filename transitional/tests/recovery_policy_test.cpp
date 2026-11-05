@@ -44,5 +44,25 @@ int main() {
     p[12] = 2; assert(!validAppPrefix(p, sizeof(p))); p[12] = 0;
     p[32] = 0; assert(!validAppPrefix(p, sizeof(p))); p[32] = magic[0];
     p[80] = 'x'; assert(!validAppPrefix(p, sizeof(p)));
+    // Persistent storage failing must leave recovery operations available.
+    r = BootRecord{}; r.attempts = 3;
+    bool persisted = false;
+    assert(completeHealth(r, true, true, [&]() { persisted = true; return false; }));
+    assert(persisted && r.attempts == 0 && r.forced == 1);
+    r.attempts = 3; persisted = false;
+    assert(!completeHealth(r, true, false, [&]() { persisted = true; return true; }));
+    assert(!persisted && r.attempts == 3); // bootloader confirmation failure still blocks
+    RestartHint hint = {};
+    armRestartHint(hint, false, image);
+    assert(consumeRestartHint(hint, true, image) == 1); // normal start despite NVS failure
+    assert(consumeRestartHint(hint, true, image) == 0); // one-shot
+    armRestartHint(hint, true, image);
+    assert(consumeRestartHint(hint, true, image) == 2);
+    armRestartHint(hint, false, image);
+    assert(consumeRestartHint(hint, false, image) == 0); // crash/power cycle must not bypass recovery
+    armRestartHint(hint, false, image); ++image[0];
+    assert(consumeRestartHint(hint, true, image) == 0); // never apply to another image
+    armRestartHint(hint, false, image); hint.inverse ^= 1;
+    assert(consumeRestartHint(hint, true, image) == 0);
     std::puts("Recovery policy: all assertions passed");
 }

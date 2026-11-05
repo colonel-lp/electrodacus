@@ -2,7 +2,7 @@ name: Ella transitional firmware
 
 on:
   push:
-    branches: [Ella-Monitoring]
+    branches: [ESP32-development]
     paths: ['transitional/**', '.github/workflows/transitional.yml']
   pull_request:
     paths: ['transitional/**', '.github/workflows/transitional.yml']
@@ -17,11 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Recovery state, image prefix and upload-boundary tests
-        run: |
-          g++ -std=c++11 -Wall -Wextra -Werror -fsanitize=address,undefined \
-            -Itransitional/src transitional/tests/recovery_policy_test.cpp -o /tmp/recovery-policy
-          /tmp/recovery-policy
-          python3 -m unittest discover -s transitional/tests -p 'test_*.py' -v
+        run: bash transitional/tests/run_host_tests.sh
   firmware:
     needs: recovery-policy
     runs-on: ubuntu-22.04
@@ -37,7 +33,9 @@ jobs:
       - name: Build application firmware
         run: pio run --project-dir transitional --environment ota
       - name: Validate application artifact and generate checksums
-        run: python3 transitional/tools/check_firmware.py transitional/.pio/build/ota/firmware.bin
+        run: |
+          python3 transitional/tools/check_firmware.py transitional/.pio/build/ota/firmware.bin
+          python3 transitional/tools/check_boot_selection.py transitional/.pio/build/ota/firmware.elf
       - name: Archive application only
         uses: actions/upload-artifact@v4
         with:

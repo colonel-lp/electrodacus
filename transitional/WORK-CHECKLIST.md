@@ -1,5 +1,29 @@
 # Ella transition implementation checkpoint
 
+## Revision 2 — 5 November 2026
+
+Authorized: correct the two transitional recovery review findings, display the
+installed bootloader version where identifiable, and build application firmware.
+Working branch: `ESP32-development`, repository `colonel-lp/electrodacus`.
+Baseline: `0574ca44a875aa4277e1902a8b745dec9a8d04ba`.
+
+- [x] Separate boot-record persistence from service health and recovery exits.
+- [x] Add an image-bound, one-shot RTC request for normal/recovery software restarts.
+- [x] Validate ArduinoOTA images before SDK boot selection and terminal success.
+- [x] Add bounded read-only bootloader identification, with explicit Unknown/inferred states.
+- [x] Pass host recovery/storage-failure, RTC, linked-selection and bootloader parser tests.
+- [x] Pass seven artifact validator tests. Local ASan/UBSan passed with leak checking
+  disabled because the sandbox cannot inspect `/proc`; CI runs the full sanitizer suite.
+- [x] Advance application version to `ella-transition-2`; update renamed CI branch filter.
+- [ ] Complete ESP32 CI build, linked-selector check and actual binary validation.
+- [ ] Record final build/download/checksum below.
+- [ ] Device installation and fault/recovery tests (not performed).
+
+Only transitional code, tests, build/documentation and current repository labels
+are changed. Root ESP-IDF firmware and original firmware base branches are untouched.
+
+## Original revision
+
 - [x] Confirm installed source `1d8f5ec6a86613d09cdd9cef91cffe9b9a56a0bd`.
 - [x] Keep complete helgef ESP-IDF project at repository root.
 - [x] Add separately buildable Arduino/ESP-IDF transitional application.
