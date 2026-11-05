@@ -15,12 +15,32 @@ Baseline: `0574ca44a875aa4277e1902a8b745dec9a8d04ba`.
 - [x] Pass seven artifact validator tests. Local ASan/UBSan passed with leak checking
   disabled because the sandbox cannot inspect `/proc`; CI runs the full sanitizer suite.
 - [x] Advance application version to `ella-transition-2`; update renamed CI branch filter.
-- [ ] Complete ESP32 CI build, linked-selector check and actual binary validation.
-- [ ] Record final build/download/checksum below.
+- [x] Complete ESP32 CI build, linked-selector check and actual binary validation.
+- [x] Record final build/download/checksum below.
 - [ ] Device installation and fault/recovery tests (not performed).
 
 Only transitional code, tests, build/documentation and current repository labels
 are changed. Root ESP-IDF firmware and original firmware base branches are untouched.
+
+### Revision 2 validation and download
+
+Validated source: `b64980328c4643e5a922c045b3f9387826e5ecef`.
+Application version: `ella-transition-2`.
+
+- [Application-only download](https://github.com/colonel-lp/electrodacus/actions/runs/42018475835/artifacts/13409214960):
+  use `firmware.bin`; the artifact also contains its checksum and application ELF.
+- [Transitional CI](https://github.com/colonel-lp/electrodacus/actions/runs/42018475835):
+  full ASan/UBSan host suite, ESP32 compilation, image checksum/SHA-256 validation
+  and compiled Arduino Update call-path validation all passed.
+- [Unmodified root ESP-IDF CI](https://github.com/colonel-lp/electrodacus/actions/runs/42018475778): passed.
+- OTA application size: **1,011,344 bytes**, within the 1,310,720-byte slot.
+- Linked application: 1,011,237 bytes; static RAM: 50,300 / 327,680 bytes.
+- SHA-256: `150f985e158c56609bed6a5d4db4f2efaec5354bd00dd9f3bfbe9d128f644989`.
+- No new compiler warnings in the changed sources; inherited main/core warnings remain.
+- No device flashing, actual NVS fault injection, Wi-Fi recovery, bootloader
+  identification on the installed unit, or power-interruption tests have been done.
+  The first OTA still depends on the installed updater/bootloader and cannot be
+  guaranteed recoverable over Wi-Fi before this application runs.
 
 ## Original revision
 
